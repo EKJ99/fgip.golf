@@ -10,7 +10,7 @@ st.set_page_config(page_title="FGIP Golf", layout="wide", page_icon="⛳")
 
 st.markdown("""
 <style>
-    /* [핵심] 화면 크기 상관없이 무조건 2개씩 배치하는 Flexbox 로직 */
+    /* 화면 크기 상관없이 무조건 2개씩 배치하는 Flexbox 로직 */
     .room-wrapper {
         display: flex;
         flex-wrap: wrap;
@@ -114,10 +114,10 @@ now = get_korea_time()
 today_str = now.strftime("%Y-%m-%d")
 current_hour = now.hour
 
-# [섹션 A] 실시간 현황판 (Flexbox 2열 강제 적용)
+# [섹션 A] 실시간 현황판 (수정됨: 들여쓰기 문제 해결)
 st.subheader("사용현황")
 
-# HTML 문자열 생성 시작
+# HTML 문자열 생성 시 들여쓰기 제거
 html_content = '<div class="room-wrapper">'
 
 for room in ROOMS:
@@ -139,16 +139,11 @@ for room in ROOMS:
                     display_text = row['allNames'].replace(",", ", ") 
                     break
     
-    # 개별 박스 HTML
-    html_content += f"""
-        <div class="room-box {status_class}">
-            <div class="room-title">{room.replace('Room ', 'R')}</div>
-            <div class="room-status">{display_text}</div>
-            <div class="room-desc">{ROOM_DESC[room]}</div>
-        </div>
-    """
+    # [수정] f-string 내부의 들여쓰기를 없애서 한 줄로 붙임
+    html_content += f"""<div class="room-box {status_class}"><div class="room-title">{room.replace('Room ', 'R')}</div><div class="room-status">{display_text}</div><div class="room-desc">{ROOM_DESC[room]}</div></div>"""
 
 html_content += '</div>'
+
 # HTML 렌더링
 st.markdown(html_content, unsafe_allow_html=True)
 
@@ -224,7 +219,6 @@ def show_booking_modal():
     pw2 = st.text_input("비밀번호 확인", type="password", max_chars=4, placeholder="한 번 더 입력")
 
     if st.button("예약 확정", type="primary", use_container_width=True):
-        # 유효성 검사
         if DEFAULT_OPT in [sel_label, selected_room, head_count, dur_sel, start_time]:
             st.error("모든 항목을 선택해주세요.")
             return
@@ -238,7 +232,6 @@ def show_booking_modal():
             st.error("비밀번호가 일치하지 않습니다.")
             return
 
-        # 중복 검사
         duration = int(dur_sel)
         s_h = int(start_time.split(':')[0])
         e_h = s_h + duration
@@ -305,7 +298,7 @@ def show_cancel_modal():
                             pw = st.text_input("비밀번호 확인", type="password", key=f"pw_{row['id']}", max_chars=4)
                             if st.button("정말 취소하시겠습니까?", key=f"del_{row['id']}", type="primary", use_container_width=True):
                                 if str(pw) == str(row['password']):
-                                    # [오류 해결] rerun을 try-except 밖으로 이동
+                                    # rerun을 try-except 밖으로 이동
                                     success = False
                                     try:
                                         sheet = get_sheet()

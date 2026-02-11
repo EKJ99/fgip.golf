@@ -10,7 +10,7 @@ st.set_page_config(page_title="FGIP Golf", layout="wide", page_icon="⛳")
 
 st.markdown("""
 <style>
-    /* 현황판 박스 스타일 (모바일 최적화) */
+    /* 현황판 박스 스타일 (모바일 2열 최적화) */
     .room-box {
         border-radius: 8px;
         padding: 10px 5px;
@@ -18,14 +18,31 @@ st.markdown("""
         color: white;
         margin-bottom: 5px;
         box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        font-size: 0.9rem;
-        min-height: 80px; /* 높이 고정 */
+        min-height: 90px; /* 높이 약간 확보하여 설명 포함 */
         display: flex;
         flex-direction: column;
         justify-content: center;
+        align-items: center;
     }
-    .room-title { font-weight: bold; font-size: 1.1rem; margin-bottom: 4px; }
-    .room-users { font-size: 0.85rem; word-break: keep-all; line-height: 1.2; }
+    .room-title { 
+        font-weight: bold; 
+        font-size: 1.0rem; 
+        margin-bottom: 2px; 
+    }
+    .room-status { 
+        font-size: 0.9rem; 
+        font-weight: bold; 
+        margin-bottom: 2px; 
+    }
+    .room-desc { 
+        font-size: 0.75rem; 
+        opacity: 0.9; 
+        margin-top: 2px;
+        background-color: rgba(0,0,0,0.1); /* 설명 배경 살짝 어둡게 */
+        padding: 2px 6px;
+        border-radius: 4px;
+        display: inline-block;
+    }
     
     /* 상태별 색상 */
     .status-available { background-color: #28a745; }
@@ -93,45 +110,54 @@ now = get_korea_time()
 today_str = now.strftime("%Y-%m-%d")
 current_hour = now.hour
 
-# [섹션 A] 실시간 현황판
-st.subheader("사용현황") # 요청하신 소제목 추가
-cols = st.columns(5)
+# [섹션 A] 실시간 현황판 (2열 배치 수정)
+st.subheader("사용현황")
 
-for i, room in enumerate(ROOMS):
-    status_class = "status-available"
-    display_text = "가능"
+# 룸 리스트를 2개씩 쪼개서 처리
+for i in range(0, len(ROOMS), 2):
+    # 2개의 컬럼 생성
+    cols = st.columns(2)
     
-    # 1. 운영시간 체크
-    op_range = get_operating_hours_range(now)
-    if current_hour not in op_range:
-        status_class = "status-closed"
-        display_text = "마감"
-    else:
-        # 2. 예약 확인
-        if not df.empty:
-            active = df[ (df['room'] == room) & (df['date'] == today_str) ]
-            for _, row in active.iterrows():
-                start = int(str(row['startTime']).split(':')[0])
-                dur = int(row['duration'])
-                if start <= current_hour < start + dur:
-                    status_class = "status-occupied"
-                    # [변경] mainName 대신 allNames를 보여줌 (콤마를 줄바꿈으로 변경하여 보기 좋게)
-                    display_text = row['allNames'].replace(",", ", ") 
-                    break
+    # 현재 행에 들어갈 룸들 (최대 2개)
+    batch_rooms = ROOMS[i : i+2]
     
-    cols[i].markdown(f"""
-        <div class="room-box {status_class}">
-            <div class="room-title">{room.replace('Room ', 'R')}</div>
-            <div class="room-users">{display_text}</div>
-        </div>
-    """, unsafe_allow_html=True)
+    for idx, room in enumerate(batch_rooms):
+        status_class = "status-available"
+        display_text = "사용 가능" # 기본 텍스트
+        
+        # 1. 운영시간 체크
+        op_range = get_operating_hours_range(now)
+        if current_hour not in op_range:
+            status_class = "status-closed"
+            display_text = "운영 시간 아님" # 요청하신 문구 반영
+        else:
+            # 2. 예약 확인
+            if not df.empty:
+                active = df[ (df['room'] == room) & (df['date'] == today_str) ]
+                for _, row in active.iterrows():
+                    start = int(str(row['startTime']).split(':')[0])
+                    dur = int(row['duration'])
+                    if start <= current_hour < start + dur:
+                        status_class = "status-occupied"
+                        # 예약자 전체 이름 표시
+                        display_text = row['allNames'].replace(",", ", ") 
+                        break
+        
+        # HTML 렌더링 (설명 추가됨)
+        cols[idx].markdown(f"""
+            <div class="room-box {status_class}">
+                <div class="room-title">{room.replace('Room ', 'R')}</div>
+                <div class="room-status">{display_text}</div>
+                <div class="room-desc">{ROOM_DESC[room]}</div>
+            </div>
+        """, unsafe_allow_html=True)
 
 st.markdown("---")
 
 # [섹션 B] 버튼 그룹
 col_b1, col_b2 = st.columns(2)
 
-# --- 예약 모달 (인터페이스 한 번에 보이기 & 비밀번호 확인 복구) ---
+# --- 예약 모달 ---
 @st.dialog("새 예약하기")
 def show_booking_modal():
     # 1. 날짜
@@ -149,7 +175,7 @@ def show_booking_modal():
     hc_opts = [DEFAULT_OPT, "1인", "2인", "3인 이상"]
     head_count = st.selectbox("인원", hc_opts)
 
-    # [동적 UI] 인원 선택 시 이름 입력칸 표시
+    # 이름 입력칸 (인원 선택 시 등장)
     names = []
     if head_count != DEFAULT_OPT:
         st.markdown("###### 참가자 이름 입력")
@@ -167,7 +193,7 @@ def show_booking_modal():
                 names.append(st.text_input(f"참가자 {k+4}"))
             max_duration = 3
     else:
-        max_duration = 0 # 인원 미선택 시
+        max_duration = 0
 
     # 4. 이용 시간
     if max_duration > 0:
@@ -177,7 +203,7 @@ def show_booking_modal():
         st.selectbox("이용 시간", [DEFAULT_OPT], disabled=True)
         dur_sel = DEFAULT_OPT
 
-    # 5. 시작 시간 (날짜, 시간 선택되어야 계산 가능)
+    # 5. 시작 시간
     valid_starts = [DEFAULT_OPT]
     if selected_date and dur_sel != DEFAULT_OPT:
         duration = int(dur_sel)
@@ -192,24 +218,21 @@ def show_booking_modal():
 
     start_time = st.selectbox("시작 시간", valid_starts, disabled=(len(valid_starts)==1 and not selected_date))
 
-    # 6. 비밀번호 (확인 포함)
+    # 6. 비밀번호 (확인 포함 복구)
     st.markdown("###### 비밀번호 설정")
     pw1 = st.text_input("비밀번호 (숫자 4자리)", type="password", max_chars=4, placeholder="예약 확인/취소용")
     pw2 = st.text_input("비밀번호 확인", type="password", max_chars=4, placeholder="한 번 더 입력")
 
-    # [예약 확정 버튼 로직]
+    # 예약 확정
     if st.button("예약 확정", type="primary", use_container_width=True):
-        # 1. 필수값 체크
         if DEFAULT_OPT in [sel_label, selected_room, head_count, dur_sel, start_time]:
             st.error("모든 항목을 선택해주세요.")
             return
         
-        # 2. 이름 체크
         if not names or not all(n.strip() for n in names):
             st.error("참가자 이름을 모두 입력해주세요.")
             return
 
-        # 3. 비밀번호 체크
         if not pw1 or len(pw1) != 4 or not pw1.isdigit():
             st.error("비밀번호는 숫자 4자리여야 합니다.")
             return
@@ -217,7 +240,6 @@ def show_booking_modal():
             st.error("비밀번호가 일치하지 않습니다.")
             return
 
-        # 4. 중복 체크
         duration = int(dur_sel)
         s_h = int(start_time.split(':')[0])
         e_h = s_h + duration
@@ -236,7 +258,6 @@ def show_booking_modal():
             st.error("이미 예약된 시간입니다.")
             return
 
-        # 5. 저장
         try:
             sheet = get_sheet()
             new_row = [
@@ -246,8 +267,8 @@ def show_booking_modal():
                 start_time,
                 duration,
                 len(names),
-                names[0], # mainName
-                ",".join(names), # allNames
+                names[0], 
+                ",".join(names), 
                 pw1,
                 "reserved",
                 str(datetime.now())
@@ -268,8 +289,6 @@ def show_cancel_modal():
         if df.empty:
             st.warning("데이터 없음")
         else:
-            # 이름 매칭 시 mainName 뿐만 아니라 allNames에 포함된 경우도 검색되게 하면 좋으나
-            # 일단 요구사항대로 mainName 기준 검색 유지 (필요시 변경 가능)
             my_list = df[ (df['mainName'] == name) & (df['date'] >= today_str) ].sort_values(by='date', ascending=True)
             
             if my_list.empty:
@@ -278,8 +297,8 @@ def show_cancel_modal():
                 for _, row in my_list.iterrows():
                     with st.container(border=True):
                         st.markdown(f"**{row['date']} {row['startTime']}**")
-                        # [변경] 여기서도 전체 인원 표시
-                        st.text(f"{row['room']} ({row['duration']}시간) - {row['allNames']}")
+                        # 전체 인원 표시
+                        st.text(f"{row['room']} ({row['duration']}시간)\n{row['allNames']}")
                         
                         if st.button("취소/변경", key=f"btn_{row['id']}", use_container_width=True):
                             st.session_state[f"cancel_{row['id']}"] = True
@@ -322,7 +341,6 @@ for i, t in enumerate(tabs):
         t_str = target_d.strftime("%Y-%m-%d")
         op_range = get_operating_hours_range(target_d)
         
-        # 빈 데이터프레임 생성
         data_rows = []
         for r in ROOMS:
             row = {"Room": r.replace("Room ", "R")}
@@ -336,8 +354,8 @@ for i, t in enumerate(tabs):
                 r_name = b['room'].replace("Room ", "R")
                 s = int(b['startTime'].split(':')[0])
                 d = int(b['duration'])
-                # [변경] 전체 이름 표시
-                all_names_display = b['allNames'].replace(",", "\n") # 줄바꿈 처리
+                # 전체 이름 줄바꿈 표시
+                all_names_display = b['allNames'].replace(",", "\n") 
                 
                 for h in range(s, s+d):
                     for row in data_rows:
@@ -346,8 +364,7 @@ for i, t in enumerate(tabs):
 
         sch_df = pd.DataFrame(data_rows).set_index("Room")
         
-        # 스타일링: 예약된 칸 노란색
         def color_map(val):
-            return 'background-color: #ffc107; white-space: pre-wrap;' if val else ''
+            return 'background-color: #ffc107; white-space: pre-wrap; font-size: 0.8em;' if val else ''
             
         st.dataframe(sch_df.style.map(color_map), use_container_width=True)

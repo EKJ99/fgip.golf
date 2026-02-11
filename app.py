@@ -110,6 +110,28 @@ df = load_data()
 if not df.empty:
     df = df[df['status'] != 'cancelled']
 
+# [테스트용 코드 시작] -----------------------------------------
+# 1. 현재 시간을 '20시'로 강제 고정 (운영 시간 내)
+current_hour = 20 
+
+# 2. Room 1에 가짜 예약 데이터 주입 (19:00 ~ 21:00 예약)
+fake_booking = pd.DataFrame([{
+    'room': 'Room 1',
+    'date': datetime.now().strftime("%Y-%m-%d"), # 오늘 날짜
+    'startTime': '19:00',
+    'duration': 2,
+    'allNames': '테스트(사용중), 김골프'
+}])
+df = pd.concat([df, fake_booking], ignore_index=True)
+# [테스트용 코드 끝] -------------------------------------------
+
+# 원래 코드의 now 설정 부분 (이 부분 아래로 기존 코드 유지)
+now = get_korea_time()
+today_str = now.strftime("%Y-%m-%d")
+# current_hour = now.hour  <-- *중요* 이 줄은 주석처리 하거나 지우세요 (위에서 20으로 설정했으므로)
+
+# ... 아래쪽 코드 생략 ...
+
 now = get_korea_time()
 today_str = now.strftime("%Y-%m-%d")
 current_hour = now.hour

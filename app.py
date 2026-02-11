@@ -5,7 +5,7 @@ from oauth2client.service_account import ServiceAccountCredentials
 from datetime import datetime, timedelta
 import time
 
-# --- 1. 페이지 설정 및 CSS (무조건 2열 강제 로직 적용) ---
+# --- 1. 페이지 설정 및 CSS (무조건 2열 강제 로직 유지) ---
 st.set_page_config(page_title="FGIP Golf", layout="wide", page_icon="⛳")
 
 st.markdown("""
@@ -114,32 +114,43 @@ now = get_korea_time()
 today_str = now.strftime("%Y-%m-%d")
 current_hour = now.hour
 
-# [섹션 A] 실시간 현황판 (수정됨: 들여쓰기 문제 해결)
+# [섹션 A] 실시간 현황판 (조건 로직 적용 & 2열 유지 & 들여쓰기 제거)
 st.subheader("사용현황")
 
-# HTML 문자열 생성 시 들여쓰기 제거
 html_content = '<div class="room-wrapper">'
 
 for room in ROOMS:
-    status_class = "status-available"
-    display_text = "사용 가능"
+    # 1. 예약 정보 확인 (먼저 데이터를 조회)
+    active_booking_row = None
+    if not df.empty:
+        active = df[ (df['room'] == room) & (df['date'] == today_str) ]
+        for _, row in active.iterrows():
+            start = int(str(row['startTime']).split(':')[0])
+            dur = int(row['duration'])
+            # 현재 시간이 예약 시간 범위 내에 있는지 확인
+            if start <= current_hour < start + dur:
+                active_booking_row = row
+                break
     
+    # 2. 운영 시간 확인
     op_range = get_operating_hours_range(now)
-    if current_hour not in op_range:
+    is_open_hours = current_hour in op_range
+
+    # 3. 상태 결정 (우선순위 로직)
+    if not is_open_hours:
+        # 조건 3: 운영 시간 아님 -> 회색
         status_class = "status-closed"
         display_text = "운영 시간 아님"
+    elif active_booking_row is not None:
+        # 조건 2: 운영 시간 중 + 예약 있음 -> 빨간색 (이름 표시)
+        status_class = "status-occupied"
+        display_text = active_booking_row['allNames'].replace(",", ", ")
     else:
-        if not df.empty:
-            active = df[ (df['room'] == room) & (df['date'] == today_str) ]
-            for _, row in active.iterrows():
-                start = int(str(row['startTime']).split(':')[0])
-                dur = int(row['duration'])
-                if start <= current_hour < start + dur:
-                    status_class = "status-occupied"
-                    display_text = row['allNames'].replace(",", ", ") 
-                    break
+        # 조건 1: 운영 시간 중 + 예약 없음 -> 초록색
+        status_class = "status-available"
+        display_text = "사용 가능"
     
-    # [수정] f-string 내부의 들여쓰기를 없애서 한 줄로 붙임
+    # HTML 생성 (들여쓰기 없이 한 줄로)
     html_content += f"""<div class="room-box {status_class}"><div class="room-title">{room.replace('Room ', 'R')}</div><div class="room-status">{display_text}</div><div class="room-desc">{ROOM_DESC[room]}</div></div>"""
 
 html_content += '</div>'
@@ -298,7 +309,6 @@ def show_cancel_modal():
                             pw = st.text_input("비밀번호 확인", type="password", key=f"pw_{row['id']}", max_chars=4)
                             if st.button("정말 취소하시겠습니까?", key=f"del_{row['id']}", type="primary", use_container_width=True):
                                 if str(pw) == str(row['password']):
-                                    # rerun을 try-except 밖으로 이동
                                     success = False
                                     try:
                                         sheet = get_sheet()

@@ -15,70 +15,64 @@ st.set_page_config(page_title="FGIP Golf", layout="wide", page_icon="⛳")
 
 st.markdown("""
 <style>
-    /* [1] 일반 박스 스타일 (div: 사용중/마감용) */
+    /* [화면 크기 상관없이 무조건 2개씩 배치하는 Flexbox 로직] - 디자인 유지 */
+    .room-wrapper {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px; /* 박스 사이 간격 */
+        width: 100%;
+    }
+    
     .room-box {
+        /* 가로 폭을 정확히 절반에서 간격(gap)의 절반만큼 뺌 -> 무조건 2열 */
+        flex: 0 0 calc(50% - 4px);
+        box-sizing: border-box;
+        
+        /* 디자인 원상복구 */
         border-radius: 8px;
-        padding: 0px 4px; /* 패딩 조정 */
+        padding: 10px 4px;
         text-align: center;
         color: white;
         box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        height: 100px; /* 높이 고정 */
+        min-height: 95px;
         display: flex;
         flex-direction: column;
         justify-content: center;
         align-items: center;
-        width: 100%;
-        margin-bottom: 8px;
     }
 
-    /* [2] 버튼 스타일 강제 변경 (button: 사용가능용) */
-    /* Primary 버튼을 '초록색 박스'로 만듭니다. */
-    div.stButton > button[kind="primary"] {
-        background-color: #28a745 !important; /* 초록색 */
-        border: none !important;
-        height: 100px !important; /* 박스 높이와 통일 */
-        width: 100% !important;
-        white-space: pre-wrap !important; /* 줄바꿈 허용 */
-        font-size: 1rem !important;
-        border-radius: 8px !important;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.1) !important;
-        line-height: 1.3 !important;
-        color: white !important;
-    }
-    
-    div.stButton > button[kind="primary"]:hover {
-        background-color: #218838 !important; /* 호버 시 진한 초록 */
-        transform: scale(0.99);
-    }
-    
-    /* 하단 '새 예약하기' 버튼도 Primary를 쓰지만, 디자인이 같아도 어색하지 않으므로 그대로 둡니다.
-       만약 구분을 원하시면 하단 버튼에만 특수 처리가 필요하지만, 
-       지금은 통일감을 위해 '중요한 액션=초록색'으로 유지합니다. */
-
-    /* Secondary 버튼 (취소, 도움말 등) 스타일 */
-    div.stButton > button[kind="secondary"] {
-        background-color: white !important;
-        color: #333 !important;
-        border: 1px solid #ccc !important;
-        height: auto !important;
-        min-height: 3em !important;
-    }
-
-    /* 텍스트 스타일 */
-    .room-title { font-weight: bold; font-size: 1.1rem; margin-bottom: 4px; }
+    .room-title { font-weight: bold; font-size: 1.0rem; margin-bottom: 4px; }
     .room-status { font-size: 0.9rem; font-weight: bold; margin-bottom: 6px; line-height: 1.2; }
     .room-desc { 
         font-size: 0.75rem; 
         background-color: rgba(0,0,0,0.2); 
         padding: 2px 8px; 
         border-radius: 10px; 
-        font-weight: normal; 
+        font-weight: normal;
     }
     
-    /* 상태별 색상 (div용) */
-    .status-occupied { background-color: #dc3545; } /* 빨강 */
-    .status-closed { background-color: #6c757d; }   /* 회색 */
+    /* 상태별 색상 */
+    .status-available { background-color: #28a745; }
+    .status-occupied { background-color: #dc3545; }
+    .status-closed { background-color: #6c757d; }
     
+    /* 버튼 스타일 (원래대로 복구) */
+    .stButton > button { 
+        width: 100%; 
+        border-radius: 8px; 
+        height: 3.5em; 
+        font-weight: bold; 
+        font-size: 1rem; 
+    }
+    
+    /* 팝업 버튼 스타일 */
+    button[kind="secondary"] {
+        height: 2.5em !important;
+        border: 1px solid #ddd;
+    }
+    
+    /* 테이블 스타일 */
+    .stDataFrame { width: 100%; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -127,18 +121,29 @@ def get_operating_hours_range(date_obj):
 
 # [상단 헤더]
 col_head, col_help = st.columns([7, 3], vertical_alignment="bottom")
+
 with col_head:
     st.title("FGIP Golf")
+
 with col_help:
+    # [툴팁 내용 원상복구]
     with st.popover("사용방법 ❔", use_container_width=True):
         st.markdown("""
         **📖 이용 안내**
-        1. **🟩 초록색 박스 (사용 가능)**
-           - **터치**하면 즉시 사용 등록이 가능합니다.
-        2. **🟥 빨간색 박스 (사용 중)**
-           - 현재 이용 중인 룸입니다.
-        3. **⬛ 회색 박스 (운영 시간 아님)**
-           - 현재 운영 시간이 아닙니다.
+        
+        1. **현황 확인**
+           - 🟩 **초록색**: 즉시 이용 가능
+           - 🟥 **빨간색**: 현재 사용 중
+           - ⬛ **회색**: 운영 시간 아님
+           
+        2. **예약 하기**
+           - '새 예약하기' 버튼 클릭
+           - 날짜, 룸, 인원을 순서대로 선택
+           - **비밀번호**는 취소 시 필요하니 꼭 기억하세요!
+           
+        3. **취소 및 변경**
+           - 예약 변경은 **기존 예약 취소 후 재예약** 해주세요.
+           - 본인이 설정한 비밀번호 입력 후 삭제 가능합니다.
         """)
 
 # 데이터 로드
@@ -149,116 +154,64 @@ if not df.empty:
 now = get_korea_time()
 today_str = now.strftime("%Y-%m-%d")
 current_hour = now.hour
-current_minute = now.minute
 
 # [TEST MODE]
 if TEST_MODE:
-    st.warning("⚠️ 테스트 모드 (20:00 고정)")
-    current_hour = 20
-    current_minute = 15
-    # 가짜 데이터 주입...
+    st.warning("⚠️ 현재 테스트 모드입니다.")
+    current_hour = 20 
+    fake_booking = pd.DataFrame([{
+        'id': 'test', 'room': 'Room 1', 
+        'date': today_str,
+        'startTime': '19:00',
+        'duration': 2, 
+        'headCount': 1, 'mainName': '테스트', 
+        'allNames': '테스트(사용중)', 
+        'password': '0000', 'status': 'reserved', 'timestamp': ''
+    }])
+    df = pd.concat([df, fake_booking], ignore_index=True)
 
-# =========================================================
-# [섹션 A] 실시간 현황판
-# =========================================================
+
+# [섹션 A] 실시간 현황판 (HTML 박스 디자인으로 원상복구)
 st.subheader("사용현황")
 
-# 즉시 사용 팝업
-@st.dialog("즉시 사용 등록")
-def show_walkin_modal(room_name):
-    remaining_min = 60 - current_minute
-    next_hour = current_hour + 1
-    
-    st.markdown(f"### {room_name}을(를) 사용하시겠습니까?")
-    st.info(f"🕐 현재 시각 **{current_hour}:{current_minute:02d}**\n\n이용은 다음 정각인 **{next_hour}:00**까지만 가능합니다.\n(이후 시간은 '새 예약하기'를 이용해주세요)")
-    
-    name = st.text_input("사용자 이름", placeholder="이름을 입력하세요")
-    pw = st.text_input("비밀번호 (4자리)", type="password", max_chars=4)
-    
-    # 이 버튼도 Primary이므로 초록색으로 나옵니다 (통일감)
-    if st.button("사용 시작 (등록)", type="primary", use_container_width=True):
-        if not name:
-            st.error("이름을 입력해주세요.")
-            return
-        if len(pw) != 4 or not pw.isdigit():
-            st.error("비밀번호 4자리를 입력해주세요.")
-            return
-            
-        try:
-            sheet = get_sheet()
-            new_row = [
-                str(int(time.time()*1000)),
-                room_name,
-                today_str,
-                f"{current_hour}:00", # 시작시간
-                1, # 1시간 슬롯
-                1,
-                name,
-                f"{name} (즉시사용)",
-                pw,
-                "reserved",
-                str(datetime.now())
-            ]
-            sheet.append_row(new_row)
-            st.success(f"{room_name} 사용 등록 완료!")
-            time.sleep(1)
-            st.rerun()
-        except Exception as e:
-            st.error(f"등록 실패: {e}")
+# HTML 문자열 생성 (들여쓰기 제거)
+html_content = '<div class="room-wrapper">'
 
-# 그리드 레이아웃
-row1 = st.columns(2)
-row2 = st.columns(2)
-row3 = st.columns(2)
-all_cols = row1 + row2 + row3
-
-for idx, room in enumerate(ROOMS):
-    col = all_cols[idx]
+for room in ROOMS:
+    active_booking_row = None
+    if not df.empty:
+        active = df[ (df['room'] == room) & (df['date'] == today_str) ]
+        for _, row in active.iterrows():
+            start = int(str(row['startTime']).split(':')[0])
+            dur = int(row['duration'])
+            if start <= current_hour < start + dur:
+                active_booking_row = row
+                break
     
-    with col:
-        status = "available"
-        display_text = "사용 가능\n(터치하여 등록)"
-        desc_text = ROOM_DESC[room]
-        
-        op_range = get_operating_hours_range(now)
-        if current_hour not in op_range:
-            status = "closed"
-            display_text = "운영 시간 아님"
-        else:
-            if not df.empty:
-                active = df[ (df['room'] == room) & (df['date'] == today_str) ]
-                for _, row in active.iterrows():
-                    start = int(str(row['startTime']).split(':')[0])
-                    dur = int(row['duration'])
-                    if start <= current_hour < start + dur:
-                        status = "occupied"
-                        display_text = row['allNames'].replace(",", "\n")
-                        break
-        
-        # 렌더링
-        if status == "available":
-            # [수정] type="primary"를 사용하여 CSS로 '초록색 박스' 디자인을 입힘
-            btn_label = f"{room.replace('Room ', 'R')}\n{display_text}"
-            if st.button(btn_label, key=f"btn_walkin_{room}", type="primary"):
-                show_walkin_modal(room)
-        else:
-            # 클릭 불가 (HTML div)
-            bg_class = "status-occupied" if status == "occupied" else "status-closed"
-            st.markdown(f"""
-                <div class="room-box {bg_class}">
-                    <div class="room-title">{room.replace('Room ', 'R')}</div>
-                    <div class="room-status">{display_text}</div>
-                    <div class="room-desc">{desc_text}</div>
-                </div>
-            """, unsafe_allow_html=True)
+    op_range = get_operating_hours_range(now)
+    is_open_hours = current_hour in op_range
 
+    if not is_open_hours:
+        status_class = "status-closed"
+        display_text = "운영 시간 아님"
+    elif active_booking_row is not None:
+        status_class = "status-occupied"
+        display_text = active_booking_row['allNames'].replace(",", ", ")
+    else:
+        status_class = "status-available"
+        display_text = "사용 가능"
+    
+    # HTML 생성
+    html_content += f"""<div class="room-box {status_class}"><div class="room-title">{room.replace('Room ', 'R')}</div><div class="room-status">{display_text}</div><div class="room-desc">{ROOM_DESC[room]}</div></div>"""
+
+html_content += '</div>'
+st.markdown(html_content, unsafe_allow_html=True)
 
 st.markdown("---")
 
-# [섹션 B] 하단 버튼 그룹
+# [섹션 B] 버튼 그룹 (원래대로)
 col_b1, col_b2 = st.columns(2)
 
-# --- 예약 모달 ---
 @st.dialog("새 예약하기")
 def show_booking_modal():
     date_labels = [DEFAULT_OPT] + [(now + timedelta(days=i)).strftime("%m월 %d일 (%a)") for i in range(7)]
@@ -317,7 +270,7 @@ def show_booking_modal():
     pw1 = st.text_input("비밀번호 (숫자 4자리)", type="password", max_chars=4, placeholder="예약 확인/취소용")
     pw2 = st.text_input("비밀번호 확인", type="password", max_chars=4, placeholder="한 번 더 입력")
 
-    if st.button("예약 확정", type="primary", use_container_width=True, key="btn_confirm_new"):
+    if st.button("예약 확정", type="primary", use_container_width=True):
         if DEFAULT_OPT in [sel_label, selected_room, head_count, dur_sel, start_time]:
             st.error("모든 항목을 선택해주세요.")
             return
@@ -413,14 +366,12 @@ def show_cancel_modal():
                                 else:
                                     st.error("비밀번호가 틀렸습니다.")
 
-# 취소 버튼은 'Secondary' (흰색)
 with col_b1:
-    if st.button("예약 취소", use_container_width=True, key="btn_open_cancel", type="secondary"):
+    if st.button("예약 취소", use_container_width=True):
         show_cancel_modal()
 
-# 새 예약하기 버튼은 'Primary' (초록색 - 위 CSS에서 강제 변경됨)
 with col_b2:
-    if st.button("새 예약하기", type="primary", use_container_width=True, key="btn_open_new"):
+    if st.button("새 예약하기", type="primary", use_container_width=True):
         show_booking_modal()
 
 

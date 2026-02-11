@@ -5,43 +5,39 @@ from oauth2client.service_account import ServiceAccountCredentials
 from datetime import datetime, timedelta
 import time
 
-# --- 1. 페이지 설정 및 CSS ---
+# --- 1. 페이지 설정 및 CSS (강제 2열 그리드 적용) ---
 st.set_page_config(page_title="FGIP Golf", layout="wide", page_icon="⛳")
 
 st.markdown("""
 <style>
-    /* 현황판 박스 스타일 (모바일 2열 최적화) */
+    /* [핵심] 모바일에서도 무조건 2열로 보이게 하는 CSS Grid */
+    .status-grid {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr); /* 1:1 비율로 2개씩 */
+        gap: 8px; /* 간격 */
+        margin-bottom: 20px;
+    }
+    
+    /* 박스 디자인 */
     .room-box {
         border-radius: 8px;
-        padding: 10px 5px;
+        padding: 12px 5px;
         text-align: center;
         color: white;
-        margin-bottom: 5px;
         box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        min-height: 90px; /* 높이 약간 확보하여 설명 포함 */
+        min-height: 90px;
         display: flex;
         flex-direction: column;
         justify-content: center;
         align-items: center;
     }
-    .room-title { 
-        font-weight: bold; 
-        font-size: 1.0rem; 
-        margin-bottom: 2px; 
-    }
-    .room-status { 
-        font-size: 0.9rem; 
-        font-weight: bold; 
-        margin-bottom: 2px; 
-    }
+    .room-title { font-weight: bold; font-size: 1.0rem; margin-bottom: 4px; }
+    .room-status { font-size: 0.9rem; font-weight: bold; margin-bottom: 4px; line-height: 1.2; }
     .room-desc { 
-        font-size: 0.75rem; 
-        opacity: 0.9; 
-        margin-top: 2px;
-        background-color: rgba(0,0,0,0.1); /* 설명 배경 살짝 어둡게 */
-        padding: 2px 6px;
-        border-radius: 4px;
-        display: inline-block;
+        font-size: 0.7rem; 
+        background-color: rgba(0,0,0,0.2); 
+        padding: 2px 6px; 
+        border-radius: 4px; 
     }
     
     /* 상태별 색상 */
@@ -110,47 +106,42 @@ now = get_korea_time()
 today_str = now.strftime("%Y-%m-%d")
 current_hour = now.hour
 
-# [섹션 A] 실시간 현황판 (2열 배치 수정)
+# [섹션 A] 실시간 현황판 (CSS Grid 사용)
 st.subheader("사용현황")
 
-# 룸 리스트를 2개씩 쪼개서 처리
-for i in range(0, len(ROOMS), 2):
-    # 2개의 컬럼 생성
-    cols = st.columns(2)
+# Python에서 HTML 코드를 생성하여 한 번에 렌더링 (이 방식이 모바일 2열 배치에 확실함)
+html_content = '<div class="status-grid">'
+
+for room in ROOMS:
+    status_class = "status-available"
+    display_text = "사용 가능"
     
-    # 현재 행에 들어갈 룸들 (최대 2개)
-    batch_rooms = ROOMS[i : i+2]
+    op_range = get_operating_hours_range(now)
+    if current_hour not in op_range:
+        status_class = "status-closed"
+        display_text = "운영 시간 아님"
+    else:
+        if not df.empty:
+            active = df[ (df['room'] == room) & (df['date'] == today_str) ]
+            for _, row in active.iterrows():
+                start = int(str(row['startTime']).split(':')[0])
+                dur = int(row['duration'])
+                if start <= current_hour < start + dur:
+                    status_class = "status-occupied"
+                    display_text = row['allNames'].replace(",", ", ") 
+                    break
     
-    for idx, room in enumerate(batch_rooms):
-        status_class = "status-available"
-        display_text = "사용 가능" # 기본 텍스트
-        
-        # 1. 운영시간 체크
-        op_range = get_operating_hours_range(now)
-        if current_hour not in op_range:
-            status_class = "status-closed"
-            display_text = "운영 시간 아님" # 요청하신 문구 반영
-        else:
-            # 2. 예약 확인
-            if not df.empty:
-                active = df[ (df['room'] == room) & (df['date'] == today_str) ]
-                for _, row in active.iterrows():
-                    start = int(str(row['startTime']).split(':')[0])
-                    dur = int(row['duration'])
-                    if start <= current_hour < start + dur:
-                        status_class = "status-occupied"
-                        # 예약자 전체 이름 표시
-                        display_text = row['allNames'].replace(",", ", ") 
-                        break
-        
-        # HTML 렌더링 (설명 추가됨)
-        cols[idx].markdown(f"""
-            <div class="room-box {status_class}">
-                <div class="room-title">{room.replace('Room ', 'R')}</div>
-                <div class="room-status">{display_text}</div>
-                <div class="room-desc">{ROOM_DESC[room]}</div>
-            </div>
-        """, unsafe_allow_html=True)
+    # 각 박스 HTML 생성
+    html_content += f"""
+        <div class="room-box {status_class}">
+            <div class="room-title">{room.replace('Room ', 'R')}</div>
+            <div class="room-status">{display_text}</div>
+            <div class="room-desc">{ROOM_DESC[room]}</div>
+        </div>
+    """
+
+html_content += '</div>'
+st.markdown(html_content, unsafe_allow_html=True)
 
 st.markdown("---")
 
@@ -175,7 +166,7 @@ def show_booking_modal():
     hc_opts = [DEFAULT_OPT, "1인", "2인", "3인 이상"]
     head_count = st.selectbox("인원", hc_opts)
 
-    # 이름 입력칸 (인원 선택 시 등장)
+    # 이름 입력
     names = []
     if head_count != DEFAULT_OPT:
         st.markdown("###### 참가자 이름 입력")
@@ -218,12 +209,11 @@ def show_booking_modal():
 
     start_time = st.selectbox("시작 시간", valid_starts, disabled=(len(valid_starts)==1 and not selected_date))
 
-    # 6. 비밀번호 (확인 포함 복구)
+    # 6. 비밀번호
     st.markdown("###### 비밀번호 설정")
-    pw1 = st.text_input("비밀번호 (숫자 4자리)", type="password", max_chars=4, placeholder="예약 확인/취소용")
-    pw2 = st.text_input("비밀번호 확인", type="password", max_chars=4, placeholder="한 번 더 입력")
+    pw1 = st.text_input("비밀번호 (숫자 4자리)", type="password", max_chars=4)
+    pw2 = st.text_input("비밀번호 확인", type="password", max_chars=4)
 
-    # 예약 확정
     if st.button("예약 확정", type="primary", use_container_width=True):
         if DEFAULT_OPT in [sel_label, selected_room, head_count, dur_sel, start_time]:
             st.error("모든 항목을 선택해주세요.")
@@ -280,7 +270,7 @@ def show_booking_modal():
         except Exception as e:
             st.error(f"저장 실패: {e}")
 
-@st.dialog("예약 취소 / 변경")
+@st.dialog("예약 취소")
 def show_cancel_modal():
     st.caption("예약 변경은 취소 후 다시 예약해주세요.")
     name = st.text_input("예약자 이름 검색")
@@ -297,30 +287,34 @@ def show_cancel_modal():
                 for _, row in my_list.iterrows():
                     with st.container(border=True):
                         st.markdown(f"**{row['date']} {row['startTime']}**")
-                        # 전체 인원 표시
                         st.text(f"{row['room']} ({row['duration']}시간)\n{row['allNames']}")
                         
-                        if st.button("취소/변경", key=f"btn_{row['id']}", use_container_width=True):
+                        if st.button("취소하기", key=f"btn_{row['id']}", use_container_width=True):
                             st.session_state[f"cancel_{row['id']}"] = True
                         
                         if st.session_state.get(f"cancel_{row['id']}"):
                             pw = st.text_input("비밀번호 확인", type="password", key=f"pw_{row['id']}", max_chars=4)
-                            if st.button("정말 삭제하시겠습니까?", key=f"del_{row['id']}", type="primary", use_container_width=True):
+                            if st.button("정말 취소하시겠습니까?", key=f"del_{row['id']}", type="primary", use_container_width=True):
                                 if str(pw) == str(row['password']):
-                                    sheet = get_sheet()
+                                    # [수정된 로직] try-except 밖에서 rerun 호출
+                                    delete_success = False
                                     try:
+                                        sheet = get_sheet()
                                         cell = sheet.find(str(row['id']))
                                         sheet.update_cell(cell.row, 10, "cancelled")
+                                        delete_success = True
+                                    except Exception as e:
+                                        st.error(f"오류 발생: {e}")
+
+                                    if delete_success:
                                         st.success("취소 완료")
                                         time.sleep(1)
                                         st.rerun()
-                                    except:
-                                        st.error("오류 발생")
                                 else:
                                     st.error("비밀번호가 틀렸습니다.")
 
 with col_b1:
-    if st.button("예약 취소 / 변경", use_container_width=True):
+    if st.button("예약 취소", use_container_width=True):
         show_cancel_modal()
 
 with col_b2:
@@ -354,7 +348,6 @@ for i, t in enumerate(tabs):
                 r_name = b['room'].replace("Room ", "R")
                 s = int(b['startTime'].split(':')[0])
                 d = int(b['duration'])
-                # 전체 이름 줄바꿈 표시
                 all_names_display = b['allNames'].replace(",", "\n") 
                 
                 for h in range(s, s+d):

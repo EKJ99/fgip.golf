@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 import time
 
 # ==========================================
-# [설정] 테스트 모드 끄기 (실제 사용을 위해 False로 변경)
+# [설정] 테스트 모드 (실제 사용 시 False)
 TEST_MODE = False
 # ==========================================
 
@@ -15,17 +15,20 @@ st.set_page_config(page_title="FGIP Golf", layout="wide", page_icon="⛳")
 
 st.markdown("""
 <style>
-    /* 화면 크기 상관없이 무조건 2개씩 배치하는 Flexbox 로직 */
+    /* [화면 크기 상관없이 무조건 2개씩 배치하는 Flexbox 로직] */
     .room-wrapper {
         display: flex;
         flex-wrap: wrap;
-        gap: 8px;
+        gap: 8px; /* 박스 사이 간격 */
         width: 100%;
     }
     
     .room-box {
+        /* 가로 폭을 정확히 절반에서 간격(gap)의 절반만큼 뺌 -> 무조건 2열 */
         flex: 0 0 calc(50% - 4px);
         box-sizing: border-box;
+        
+        /* 디자인 */
         border-radius: 8px;
         padding: 10px 4px;
         text-align: center;
@@ -48,19 +51,28 @@ st.markdown("""
         font-weight: normal;
     }
     
+    /* 상태별 색상 */
     .status-available { background-color: #28a745; }
     .status-occupied { background-color: #dc3545; }
     .status-closed { background-color: #6c757d; }
     
     /* 버튼 스타일 */
-    .stButton > button { width: 100%; border-radius: 8px; height: 3.5em; font-weight: bold; font-size: 1rem; }
-    .stDataFrame { width: 100%; }
-    
-    /* 팝업(Popover) 버튼 스타일 조정 */
-    button[kind="secondary"] {
-        border: 1px solid #ddd;
-        height: 2.5em !important; /* 상단 버튼은 조금 작게 */
+    .stButton > button { 
+        width: 100%; 
+        border-radius: 8px; 
+        height: 3.5em; 
+        font-weight: bold; 
+        font-size: 1rem; 
     }
+    
+    /* 팝업 버튼 스타일 */
+    button[kind="secondary"] {
+        height: 2.5em !important;
+        border: 1px solid #ddd;
+    }
+    
+    /* 테이블 스타일 */
+    .stDataFrame { width: 100%; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -96,8 +108,9 @@ ROOM_DESC = {
 }
 DEFAULT_OPT = "-선택해주세요-"
 
-def get_korea_time():
-    return datetime.utcnow() + timedelta(hours=9)
+# [변경] 사우디 시간 (UTC+3)
+def get_saudi_time():
+    return datetime.utcnow() + timedelta(hours=3)
 
 def get_operating_hours_range(date_obj):
     weekday = date_obj.weekday()
@@ -107,14 +120,13 @@ def get_operating_hours_range(date_obj):
 
 # --- 4. 메인 UI 구성 ---
 
-# [상단 헤더: 타이틀과 사용방법 버튼 분할]
+# [상단 헤더]
 col_head, col_help = st.columns([7, 3], vertical_alignment="bottom")
 
 with col_head:
     st.title("FGIP Golf")
 
 with col_help:
-    # 우측 상단 사용방법 팝업
     with st.popover("사용방법 ❔", use_container_width=True):
         st.markdown("""
         **📖 이용 안내**
@@ -139,13 +151,14 @@ df = load_data()
 if not df.empty:
     df = df[df['status'] != 'cancelled']
 
-now = get_korea_time()
+# [변경] 사우디 시간 기준 적용
+now = get_saudi_time()
 today_str = now.strftime("%Y-%m-%d")
 current_hour = now.hour
 
-# [TEST MODE LOGIC]
+# [TEST MODE]
 if TEST_MODE:
-    st.warning("⚠️ 현재 테스트 모드입니다. (시간: 20:00 고정, Room 1 예약됨)")
+    st.warning("⚠️ 현재 테스트 모드입니다.")
     current_hour = 20 
     fake_booking = pd.DataFrame([{
         'id': 'test', 'room': 'Room 1', 
@@ -188,6 +201,7 @@ for room in ROOMS:
         status_class = "status-available"
         display_text = "사용 가능"
     
+    # HTML 생성
     html_content += f"""<div class="room-box {status_class}"><div class="room-title">{room.replace('Room ', 'R')}</div><div class="room-status">{display_text}</div><div class="room-desc">{ROOM_DESC[room]}</div></div>"""
 
 html_content += '</div>'

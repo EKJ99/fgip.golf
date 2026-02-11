@@ -15,20 +15,14 @@ st.set_page_config(page_title="FGIP Golf", layout="wide", page_icon="⛳")
 
 st.markdown("""
 <style>
-    /* [현황판 그리드 레이아웃] */
-    /* 모바일 2열 강제 배치를 위해 Streamlit 컬럼 내부 요소 스타일링 */
-    div[data-testid="column"] {
-        padding: 2px;
-    }
-
-    /* 1. 공통 박스 스타일 (버튼 아님, 정보 표시용) */
+    /* [1] 일반 박스 스타일 (div: 사용중/마감용) */
     .room-box {
         border-radius: 8px;
-        padding: 12px 4px;
+        padding: 0px 4px; /* 패딩 조정 */
         text-align: center;
         color: white;
         box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        height: 100px; /* 높이 통일 */
+        height: 100px; /* 높이 고정 */
         display: flex;
         flex-direction: column;
         justify-content: center;
@@ -37,48 +31,37 @@ st.markdown("""
         margin-bottom: 8px;
     }
 
-    /* 2. 초록색 버튼 스타일 (사용 가능일 때) */
-    /* Streamlit 버튼을 커스텀하여 박스처럼 보이게 만듦 */
-    div.stButton > button {
-        width: 100%;
-        height: 100px; /* 박스 높이와 맞춤 */
-        border-radius: 8px;
-        border: none;
-        color: white;
-        font-weight: bold;
-        white-space: pre-wrap; /* 줄바꿈 허용 */
-        line-height: 1.3;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        transition: transform 0.1s;
-    }
-    
-    div.stButton > button:active {
-        transform: scale(0.98);
-    }
-
-    /* 특정 버튼(즉시 사용)만 초록색으로 만들기 위한 CSS 클래스 활용은 Streamlit에서 제한적이므로
-       버튼의 key나 텍스트를 감지할 수 없으니, 기본 버튼 스타일을 잡고
-       하단 '예약하기' 등 다른 버튼은 type="primary"로 구분하여 색상 지정 */
-    
-    /* 일반 버튼 (즉시 사용 버튼용) -> 초록색 */
-    div.stButton > button {
-        background-color: #28a745; 
-    }
-    div.stButton > button:hover {
-        background-color: #218838;
-        color: white;
-    }
-
-    /* Primary 버튼 (하단 예약하기, 취소 등) -> 파란색/빨간색 유지 */
+    /* [2] 버튼 스타일 강제 변경 (button: 사용가능용) */
+    /* Primary 버튼을 '초록색 박스'로 만듭니다. */
     div.stButton > button[kind="primary"] {
-        background-color: #0d6efd;
-        height: 3.5em; /* 하단 버튼은 높이 원래대로 */
+        background-color: #28a745 !important; /* 초록색 */
+        border: none !important;
+        height: 100px !important; /* 박스 높이와 통일 */
+        width: 100% !important;
+        white-space: pre-wrap !important; /* 줄바꿈 허용 */
+        font-size: 1rem !important;
+        border-radius: 8px !important;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1) !important;
+        line-height: 1.3 !important;
+        color: white !important;
     }
+    
+    div.stButton > button[kind="primary"]:hover {
+        background-color: #218838 !important; /* 호버 시 진한 초록 */
+        transform: scale(0.99);
+    }
+    
+    /* 하단 '새 예약하기' 버튼도 Primary를 쓰지만, 디자인이 같아도 어색하지 않으므로 그대로 둡니다.
+       만약 구분을 원하시면 하단 버튼에만 특수 처리가 필요하지만, 
+       지금은 통일감을 위해 '중요한 액션=초록색'으로 유지합니다. */
+
+    /* Secondary 버튼 (취소, 도움말 등) 스타일 */
     div.stButton > button[kind="secondary"] {
-        background-color: white;
-        color: black;
-        border: 1px solid #ccc;
-        height: 2.5em; /* 상단 도움말 버튼 */
+        background-color: white !important;
+        color: #333 !important;
+        border: 1px solid #ccc !important;
+        height: auto !important;
+        min-height: 3em !important;
     }
 
     /* 텍스트 스타일 */
@@ -92,9 +75,9 @@ st.markdown("""
         font-weight: normal; 
     }
     
-    /* 상태별 색상 (HTML 박스용) */
-    .status-occupied { background-color: #dc3545; }
-    .status-closed { background-color: #6c757d; }
+    /* 상태별 색상 (div용) */
+    .status-occupied { background-color: #dc3545; } /* 빨강 */
+    .status-closed { background-color: #6c757d; }   /* 회색 */
     
 </style>
 """, unsafe_allow_html=True)
@@ -151,7 +134,7 @@ with col_help:
         st.markdown("""
         **📖 이용 안내**
         1. **🟩 초록색 박스 (사용 가능)**
-           - 박스를 **터치(클릭)**하면 즉시 사용 등록이 가능합니다.
+           - **터치**하면 즉시 사용 등록이 가능합니다.
         2. **🟥 빨간색 박스 (사용 중)**
            - 현재 이용 중인 룸입니다.
         3. **⬛ 회색 박스 (운영 시간 아님)**
@@ -173,17 +156,16 @@ if TEST_MODE:
     st.warning("⚠️ 테스트 모드 (20:00 고정)")
     current_hour = 20
     current_minute = 15
-    # 가짜 데이터 주입 등...
+    # 가짜 데이터 주입...
 
 # =========================================================
-# [섹션 A] 실시간 현황판 (클릭 기능 추가됨)
+# [섹션 A] 실시간 현황판
 # =========================================================
 st.subheader("사용현황")
 
-# 즉시 사용 팝업 함수
+# 즉시 사용 팝업
 @st.dialog("즉시 사용 등록")
 def show_walkin_modal(room_name):
-    # 남은 시간 계산 (다음 정각까지)
     remaining_min = 60 - current_minute
     next_hour = current_hour + 1
     
@@ -193,6 +175,7 @@ def show_walkin_modal(room_name):
     name = st.text_input("사용자 이름", placeholder="이름을 입력하세요")
     pw = st.text_input("비밀번호 (4자리)", type="password", max_chars=4)
     
+    # 이 버튼도 Primary이므로 초록색으로 나옵니다 (통일감)
     if st.button("사용 시작 (등록)", type="primary", use_container_width=True):
         if not name:
             st.error("이름을 입력해주세요.")
@@ -207,8 +190,8 @@ def show_walkin_modal(room_name):
                 str(int(time.time()*1000)),
                 room_name,
                 today_str,
-                f"{current_hour}:00", # 현재 시간을 시작 시간으로 기록
-                1, # 1시간 슬롯 점유 (실제로는 정각까지만 씀)
+                f"{current_hour}:00", # 시작시간
+                1, # 1시간 슬롯
                 1,
                 name,
                 f"{name} (즉시사용)",
@@ -223,30 +206,25 @@ def show_walkin_modal(room_name):
         except Exception as e:
             st.error(f"등록 실패: {e}")
 
-# 그리드 레이아웃 생성
-# Streamlit은 루프 안에서 st.columns를 계속 만들면 행이 바뀜
-# 미리 3개의 행(Row) 컨테이너를 만들어서 배치 (5개룸 -> 2, 2, 1)
+# 그리드 레이아웃
 row1 = st.columns(2)
 row2 = st.columns(2)
 row3 = st.columns(2)
-all_cols = row1 + row2 + row3 # 리스트 합치기
+all_cols = row1 + row2 + row3
 
 for idx, room in enumerate(ROOMS):
     col = all_cols[idx]
     
     with col:
-        # 상태 판단 로직
         status = "available"
-        display_text = "사용 가능\n(터치하여 등록)" # 줄바꿈 포함
+        display_text = "사용 가능\n(터치하여 등록)"
         desc_text = ROOM_DESC[room]
         
-        # 1. 운영시간 체크
         op_range = get_operating_hours_range(now)
         if current_hour not in op_range:
             status = "closed"
             display_text = "운영 시간 아님"
         else:
-            # 2. 예약 체크
             if not df.empty:
                 active = df[ (df['room'] == room) & (df['date'] == today_str) ]
                 for _, row in active.iterrows():
@@ -254,22 +232,17 @@ for idx, room in enumerate(ROOMS):
                     dur = int(row['duration'])
                     if start <= current_hour < start + dur:
                         status = "occupied"
-                        display_text = row['allNames'].replace(",", "\n") # 줄바꿈
+                        display_text = row['allNames'].replace(",", "\n")
                         break
         
-        # 3. 렌더링 (상태에 따라 다르게)
+        # 렌더링
         if status == "available":
-            # [핵심] 사용 가능일 때는 '버튼' 렌더링
-            # 버튼 텍스트에 룸 이름과 상태를 같이 넣음
+            # [수정] type="primary"를 사용하여 CSS로 '초록색 박스' 디자인을 입힘
             btn_label = f"{room.replace('Room ', 'R')}\n{display_text}"
-            if st.button(btn_label, key=f"btn_walkin_{room}"):
+            if st.button(btn_label, key=f"btn_walkin_{room}", type="primary"):
                 show_walkin_modal(room)
-                
-            # 버튼 아래에 설명을 작게 붙이고 싶지만, 버튼 안에 넣을 수 없으므로 생략하거나
-            # CSS로 버튼 안에 보이게 하는건 복잡함. 대신 툴팁이나 버튼 텍스트 활용.
-            
         else:
-            # 사용 중 / 마감일 때는 'HTML 박스' 렌더링 (클릭 불가)
+            # 클릭 불가 (HTML div)
             bg_class = "status-occupied" if status == "occupied" else "status-closed"
             st.markdown(f"""
                 <div class="room-box {bg_class}">
@@ -285,7 +258,7 @@ st.markdown("---")
 # [섹션 B] 하단 버튼 그룹
 col_b1, col_b2 = st.columns(2)
 
-# --- 예약 모달 (기존 유지) ---
+# --- 예약 모달 ---
 @st.dialog("새 예약하기")
 def show_booking_modal():
     date_labels = [DEFAULT_OPT] + [(now + timedelta(days=i)).strftime("%m월 %d일 (%a)") for i in range(7)]
@@ -440,10 +413,12 @@ def show_cancel_modal():
                                 else:
                                     st.error("비밀번호가 틀렸습니다.")
 
+# 취소 버튼은 'Secondary' (흰색)
 with col_b1:
-    if st.button("예약 취소", use_container_width=True, key="btn_open_cancel", type="primary"):
+    if st.button("예약 취소", use_container_width=True, key="btn_open_cancel", type="secondary"):
         show_cancel_modal()
 
+# 새 예약하기 버튼은 'Primary' (초록색 - 위 CSS에서 강제 변경됨)
 with col_b2:
     if st.button("새 예약하기", type="primary", use_container_width=True, key="btn_open_new"):
         show_booking_modal()

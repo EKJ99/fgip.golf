@@ -5,39 +5,47 @@ from oauth2client.service_account import ServiceAccountCredentials
 from datetime import datetime, timedelta
 import time
 
-# --- 1. 페이지 설정 및 CSS (강제 2열 그리드 적용) ---
+# --- 1. 페이지 설정 및 CSS (무조건 2열 강제 로직 적용) ---
 st.set_page_config(page_title="FGIP Golf", layout="wide", page_icon="⛳")
 
 st.markdown("""
 <style>
-    /* [핵심] 모바일에서도 무조건 2열로 보이게 하는 CSS Grid */
-    .status-grid {
-        display: grid;
-        grid-template-columns: repeat(2, 1fr); /* 1:1 비율로 2개씩 */
-        gap: 8px; /* 간격 */
-        margin-bottom: 20px;
+    /* [핵심] 화면 크기 상관없이 무조건 2개씩 배치하는 Flexbox 로직 */
+    .room-wrapper {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px; /* 박스 사이 간격 */
+        width: 100%;
     }
     
-    /* 박스 디자인 */
     .room-box {
+        /* 가로 폭을 정확히 절반에서 간격(gap)의 절반만큼 뺌 -> 무조건 2열 */
+        flex: 0 0 calc(50% - 4px);
+        box-sizing: border-box;
+        
+        /* 디자인 */
         border-radius: 8px;
-        padding: 12px 5px;
+        padding: 10px 4px;
         text-align: center;
         color: white;
         box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        min-height: 90px;
+        min-height: 95px; /* 높이 확보 */
+        
+        /* 내용 정렬 */
         display: flex;
         flex-direction: column;
         justify-content: center;
         align-items: center;
     }
+
     .room-title { font-weight: bold; font-size: 1.0rem; margin-bottom: 4px; }
-    .room-status { font-size: 0.9rem; font-weight: bold; margin-bottom: 4px; line-height: 1.2; }
+    .room-status { font-size: 0.9rem; font-weight: bold; margin-bottom: 6px; line-height: 1.2; }
     .room-desc { 
-        font-size: 0.7rem; 
+        font-size: 0.75rem; 
         background-color: rgba(0,0,0,0.2); 
-        padding: 2px 6px; 
-        border-radius: 4px; 
+        padding: 2px 8px; 
+        border-radius: 10px; 
+        font-weight: normal;
     }
     
     /* 상태별 색상 */
@@ -45,8 +53,8 @@ st.markdown("""
     .status-occupied { background-color: #dc3545; }
     .status-closed { background-color: #6c757d; }
     
-    /* 버튼 스타일 */
-    .stButton > button { width: 100%; border-radius: 8px; height: 3em; font-weight: bold; }
+    /* 버튼 스타일 (꽉 차게) */
+    .stButton > button { width: 100%; border-radius: 8px; height: 3.5em; font-weight: bold; font-size: 1rem; }
     
     /* 테이블 스타일 */
     .stDataFrame { width: 100%; }
@@ -106,11 +114,11 @@ now = get_korea_time()
 today_str = now.strftime("%Y-%m-%d")
 current_hour = now.hour
 
-# [섹션 A] 실시간 현황판 (CSS Grid 사용)
+# [섹션 A] 실시간 현황판 (Flexbox 2열 강제 적용)
 st.subheader("사용현황")
 
-# Python에서 HTML 코드를 생성하여 한 번에 렌더링 (이 방식이 모바일 2열 배치에 확실함)
-html_content = '<div class="status-grid">'
+# HTML 문자열 생성 시작
+html_content = '<div class="room-wrapper">'
 
 for room in ROOMS:
     status_class = "status-available"
@@ -131,7 +139,7 @@ for room in ROOMS:
                     display_text = row['allNames'].replace(",", ", ") 
                     break
     
-    # 각 박스 HTML 생성
+    # 개별 박스 HTML
     html_content += f"""
         <div class="room-box {status_class}">
             <div class="room-title">{room.replace('Room ', 'R')}</div>
@@ -141,6 +149,7 @@ for room in ROOMS:
     """
 
 html_content += '</div>'
+# HTML 렌더링
 st.markdown(html_content, unsafe_allow_html=True)
 
 st.markdown("---")
@@ -211,18 +220,17 @@ def show_booking_modal():
 
     # 6. 비밀번호
     st.markdown("###### 비밀번호 설정")
-    pw1 = st.text_input("비밀번호 (숫자 4자리)", type="password", max_chars=4)
-    pw2 = st.text_input("비밀번호 확인", type="password", max_chars=4)
+    pw1 = st.text_input("비밀번호 (숫자 4자리)", type="password", max_chars=4, placeholder="예약 확인/취소용")
+    pw2 = st.text_input("비밀번호 확인", type="password", max_chars=4, placeholder="한 번 더 입력")
 
     if st.button("예약 확정", type="primary", use_container_width=True):
+        # 유효성 검사
         if DEFAULT_OPT in [sel_label, selected_room, head_count, dur_sel, start_time]:
             st.error("모든 항목을 선택해주세요.")
             return
-        
         if not names or not all(n.strip() for n in names):
             st.error("참가자 이름을 모두 입력해주세요.")
             return
-
         if not pw1 or len(pw1) != 4 or not pw1.isdigit():
             st.error("비밀번호는 숫자 4자리여야 합니다.")
             return
@@ -230,6 +238,7 @@ def show_booking_modal():
             st.error("비밀번호가 일치하지 않습니다.")
             return
 
+        # 중복 검사
         duration = int(dur_sel)
         s_h = int(start_time.split(':')[0])
         e_h = s_h + duration
@@ -296,17 +305,17 @@ def show_cancel_modal():
                             pw = st.text_input("비밀번호 확인", type="password", key=f"pw_{row['id']}", max_chars=4)
                             if st.button("정말 취소하시겠습니까?", key=f"del_{row['id']}", type="primary", use_container_width=True):
                                 if str(pw) == str(row['password']):
-                                    # [수정된 로직] try-except 밖에서 rerun 호출
-                                    delete_success = False
+                                    # [오류 해결] rerun을 try-except 밖으로 이동
+                                    success = False
                                     try:
                                         sheet = get_sheet()
                                         cell = sheet.find(str(row['id']))
                                         sheet.update_cell(cell.row, 10, "cancelled")
-                                        delete_success = True
+                                        success = True
                                     except Exception as e:
                                         st.error(f"오류 발생: {e}")
-
-                                    if delete_success:
+                                    
+                                    if success:
                                         st.success("취소 완료")
                                         time.sleep(1)
                                         st.rerun()

@@ -5,7 +5,14 @@ from oauth2client.service_account import ServiceAccountCredentials
 from datetime import datetime, timedelta
 import time
 
-# --- 1. 페이지 설정 및 CSS (무조건 2열 강제 로직 유지) ---
+# ==========================================
+# [테스트 모드 설정]
+# True: 테스트 모드 (20시 강제 고정, Room 1 가짜 예약)
+# False: 실제 모드 (실제 시간, 실제 데이터)
+TEST_MODE = True 
+# ==========================================
+
+# --- 1. 페이지 설정 및 CSS ---
 st.set_page_config(page_title="FGIP Golf", layout="wide", page_icon="⛳")
 
 st.markdown("""
@@ -14,24 +21,19 @@ st.markdown("""
     .room-wrapper {
         display: flex;
         flex-wrap: wrap;
-        gap: 8px; /* 박스 사이 간격 */
+        gap: 8px;
         width: 100%;
     }
     
     .room-box {
-        /* 가로 폭을 정확히 절반에서 간격(gap)의 절반만큼 뺌 -> 무조건 2열 */
         flex: 0 0 calc(50% - 4px);
         box-sizing: border-box;
-        
-        /* 디자인 */
         border-radius: 8px;
         padding: 10px 4px;
         text-align: center;
         color: white;
         box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        min-height: 95px; /* 높이 확보 */
-        
-        /* 내용 정렬 */
+        min-height: 95px;
         display: flex;
         flex-direction: column;
         justify-content: center;
@@ -48,15 +50,10 @@ st.markdown("""
         font-weight: normal;
     }
     
-    /* 상태별 색상 */
     .status-available { background-color: #28a745; }
     .status-occupied { background-color: #dc3545; }
     .status-closed { background-color: #6c757d; }
-    
-    /* 버튼 스타일 (꽉 차게) */
     .stButton > button { width: 100%; border-radius: 8px; height: 3.5em; font-weight: bold; font-size: 1rem; }
-    
-    /* 테이블 스타일 */
     .stDataFrame { width: 100%; }
 </style>
 """, unsafe_allow_html=True)
@@ -106,78 +103,79 @@ def get_operating_hours_range(date_obj):
 
 st.title("FGIP Golf")
 
+# 데이터 로드
 df = load_data()
 if not df.empty:
     df = df[df['status'] != 'cancelled']
 
-# [테스트용 코드 시작] -----------------------------------------
-# 1. 현재 시간을 '20시'로 강제 고정 (운영 시간 내)
-current_hour = 20 
-
-# 2. Room 1에 가짜 예약 데이터 주입 (19:00 ~ 21:00 예약)
-fake_booking = pd.DataFrame([{
-    'room': 'Room 1',
-    'date': datetime.now().strftime("%Y-%m-%d"), # 오늘 날짜
-    'startTime': '19:00',
-    'duration': 2,
-    'allNames': '테스트(사용중), 김골프'
-}])
-df = pd.concat([df, fake_booking], ignore_index=True)
-# [테스트용 코드 끝] -------------------------------------------
-
-# 원래 코드의 now 설정 부분 (이 부분 아래로 기존 코드 유지)
-now = get_korea_time()
-today_str = now.strftime("%Y-%m-%d")
-# current_hour = now.hour  <-- *중요* 이 줄은 주석처리 하거나 지우세요 (위에서 20으로 설정했으므로)
-
-# ... 아래쪽 코드 생략 ...
-
+# [시간 및 데이터 설정]
 now = get_korea_time()
 today_str = now.strftime("%Y-%m-%d")
 current_hour = now.hour
 
-# [섹션 A] 실시간 현황판 (조건 로직 적용 & 2열 유지 & 들여쓰기 제거)
+# ==========================================
+# [TEST MODE LOGIC] - 여기가 핵심입니다
+# ==========================================
+if TEST_MODE:
+    st.warning("⚠️ 현재 테스트 모드입니다. (시간: 20:00 고정, Room 1 예약됨)")
+    
+    # 1. 시간 강제 고정 (오후 8시)
+    current_hour = 20 
+    
+    # 2. 가짜 데이터 생성 (Room 1 사용중 표시를 위해)
+    fake_booking = pd.DataFrame([{
+        'id': 'test', 'room': 'Room 1', 
+        'date': today_str,    # 오늘 날짜와 정확히 일치시킴
+        'startTime': '19:00', # 19시~21시 예약
+        'duration': 2, 
+        'headCount': 1, 'mainName': '테스트', 
+        'allNames': '테스트(사용중)', 
+        'password': '0000', 'status': 'reserved', 'timestamp': ''
+    }])
+    
+    # 3. 데이터 합치기
+    df = pd.concat([df, fake_booking], ignore_index=True)
+# ==========================================
+
+
+# [섹션 A] 실시간 현황판
 st.subheader("사용현황")
 
 html_content = '<div class="room-wrapper">'
 
 for room in ROOMS:
-    # 1. 예약 정보 확인 (먼저 데이터를 조회)
+    # 1. 예약 정보 확인
     active_booking_row = None
     if not df.empty:
+        # 날짜와 룸이 일치하는 데이터 필터링
         active = df[ (df['room'] == room) & (df['date'] == today_str) ]
         for _, row in active.iterrows():
             start = int(str(row['startTime']).split(':')[0])
             dur = int(row['duration'])
-            # 현재 시간이 예약 시간 범위 내에 있는지 확인
+            # 현재 시간(20시)이 예약 범위(19~21) 내에 있는지 확인
             if start <= current_hour < start + dur:
                 active_booking_row = row
                 break
     
-    # 2. 운영 시간 확인
+    # 2. 운영 시간 확인 (테스트 시에도 요일별 운영시간 로직은 통과해야 함)
     op_range = get_operating_hours_range(now)
     is_open_hours = current_hour in op_range
 
-    # 3. 상태 결정 (우선순위 로직)
+    # 3. 상태 결정
     if not is_open_hours:
-        # 조건 3: 운영 시간 아님 -> 회색
         status_class = "status-closed"
         display_text = "운영 시간 아님"
     elif active_booking_row is not None:
-        # 조건 2: 운영 시간 중 + 예약 있음 -> 빨간색 (이름 표시)
         status_class = "status-occupied"
         display_text = active_booking_row['allNames'].replace(",", ", ")
     else:
-        # 조건 1: 운영 시간 중 + 예약 없음 -> 초록색
         status_class = "status-available"
         display_text = "사용 가능"
     
-    # HTML 생성 (들여쓰기 없이 한 줄로)
+    # HTML 생성
     html_content += f"""<div class="room-box {status_class}"><div class="room-title">{room.replace('Room ', 'R')}</div><div class="room-status">{display_text}</div><div class="room-desc">{ROOM_DESC[room]}</div></div>"""
 
 html_content += '</div>'
-
-# HTML 렌더링
 st.markdown(html_content, unsafe_allow_html=True)
 
 st.markdown("---")
@@ -185,25 +183,20 @@ st.markdown("---")
 # [섹션 B] 버튼 그룹
 col_b1, col_b2 = st.columns(2)
 
-# --- 예약 모달 ---
 @st.dialog("새 예약하기")
 def show_booking_modal():
-    # 1. 날짜
     date_labels = [DEFAULT_OPT] + [(now + timedelta(days=i)).strftime("%m월 %d일 (%a)") for i in range(7)]
     date_values = [None] + [(now + timedelta(days=i)).strftime("%Y-%m-%d") for i in range(7)]
     date_map = dict(zip(date_labels, date_values))
     sel_label = st.selectbox("날짜", date_labels)
     selected_date = date_map.get(sel_label)
 
-    # 2. 룸
     room_opts = [DEFAULT_OPT] + ROOMS
     selected_room = st.selectbox("룸", room_opts)
 
-    # 3. 인원
     hc_opts = [DEFAULT_OPT, "1인", "2인", "3인 이상"]
     head_count = st.selectbox("인원", hc_opts)
 
-    # 이름 입력
     names = []
     if head_count != DEFAULT_OPT:
         st.markdown("###### 참가자 이름 입력")
@@ -223,7 +216,6 @@ def show_booking_modal():
     else:
         max_duration = 0
 
-    # 4. 이용 시간
     if max_duration > 0:
         dur_opts = [DEFAULT_OPT] + list(range(1, max_duration + 1))
         dur_sel = st.selectbox("이용 시간", dur_opts, format_func=lambda x: f"{x}시간" if x != DEFAULT_OPT else x)
@@ -231,7 +223,6 @@ def show_booking_modal():
         st.selectbox("이용 시간", [DEFAULT_OPT], disabled=True)
         dur_sel = DEFAULT_OPT
 
-    # 5. 시작 시간
     valid_starts = [DEFAULT_OPT]
     if selected_date and dur_sel != DEFAULT_OPT:
         duration = int(dur_sel)
@@ -246,7 +237,6 @@ def show_booking_modal():
 
     start_time = st.selectbox("시작 시간", valid_starts, disabled=(len(valid_starts)==1 and not selected_date))
 
-    # 6. 비밀번호
     st.markdown("###### 비밀번호 설정")
     pw1 = st.text_input("비밀번호 (숫자 4자리)", type="password", max_chars=4, placeholder="예약 확인/취소용")
     pw2 = st.text_input("비밀번호 확인", type="password", max_chars=4, placeholder="한 번 더 입력")

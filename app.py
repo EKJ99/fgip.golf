@@ -104,17 +104,16 @@ def load_data():
 # 9번 방까지 리스트 확장
 ROOMS = ["Room 1", "Room 2", "Room 3", "Room 4", "Room 5", "Room 6", "Room 7", "Room 8", "Room 9"]
 
-# 각 방에 대한 설명 추가 (6,8번: 일반 / 7,9번: 스윙/GDR+)
 ROOM_DESC = {
     "Room 1": "일반", 
     "Room 2": "일반", 
     "Room 3": "스윙/GDR+",
     "Room 4": "양손잡이", 
     "Room 5": "개인훈련",
-    "Room 6": "일반",
-    "Room 7": "스윙/GDR+",
-    "Room 8": "일반",
-    "Room 9": "스윙/GDR+"
+    "Room 6": "스윙/GDR+",
+    "Room 7": "일반",
+    "Room 8": "스윙/GDR+",
+    "Room 9": "일반"
 }
 DEFAULT_OPT = "-선택해주세요-"
 

@@ -123,9 +123,9 @@ def get_saudi_time():
 
 def get_operating_hours_range(date_obj):
     weekday = date_obj.weekday()
-    if weekday == 3: return range(17, 22)   # 목
-    elif weekday == 4: return range(6, 22) # 금
-    else: return range(19, 22)             # 그외
+    if weekday == 3: return range(0, 24)   # 목
+    elif weekday == 4: return range(0, 24) # 금
+    else: return range(0, 24)             # 그외
 
 # --- 4. 메인 UI 구성 ---
 
